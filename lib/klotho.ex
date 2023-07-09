@@ -19,6 +19,10 @@ defmodule Klotho do
     @backend.send_after(time, pid, message)
   end
 
+  def start_timer(time, pid, message) do
+    @backend.start_timer(time, pid, message)
+  end
+
   def read_timer(ref) do
     @backend.read_timer(ref)
   end
