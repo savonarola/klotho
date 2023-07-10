@@ -1,4 +1,5 @@
 [![Elixir CI](https://github.com/savonarola/klotho/actions/workflows/elixir.yml/badge.svg)](https://github.com/savonarola/klotho/actions/workflows/elixir.yml)
+[![Coverage Status](https://coveralls.io/repos/github/savonarola/klotho/badge.svg?branch=main)](https://coveralls.io/github/savonarola/klotho?branch=main)
 
 # Klotho
 
