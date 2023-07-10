@@ -1,6 +1,8 @@
+[![Elixir CI](https://github.com/savonarola/klotho/actions/workflows/elixir.yml/badge.svg)](https://github.com/savonarola/klotho/actions/workflows/elixir.yml)
+
 # Klotho
 
-**TODO: Add description**
+Opinionated library for testing timer-based code.
 
 ## Installation
 
