@@ -1,0 +1,84 @@
+name: Elixir CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-22.04
+
+    # https://github.com/elixir-lang/elixir/blob/master/lib/elixir/pages/compatibility-and-deprecations.md
+    strategy:
+      matrix:
+        include:
+
+          # Elixir 1.12
+
+          - elixir: 1.12.3
+            otp_release: 24.3
+
+          # Elixir 1.13
+
+          - elixir: 1.13.4
+            otp_release: 24.3
+
+          - elixir: 1.13.4
+            otp_release: 25.3
+
+          # Elixir 1.14
+
+          - elixir: 1.14.5
+            otp_release: 24.2.1
+
+          - elixir: 1.14.5
+            otp_release: 25.3
+
+          # Elixir 1.15
+
+          - elixir: 1.15.2
+            otp_release: 24.3
+
+          - elixir: 1.15.2
+            otp_release: 25.3
+
+          - elixir: 1.15.2
+            otp_release: 26.0
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        elixir-version: ${{ matrix.elixir }}
+        otp-version: ${{ matrix.otp_release }}
+    - name: Restore dependencies cache
+      uses: actions/cache@v2
+      with:
+        path: deps
+        key: ${{ matrix.elixir }}-${{ matrix.otp_release }}-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+    - name: Install dependencies
+      run: mix deps.get
+    - name: Run tests
+      run: mix test
+
+  code_analysis:
+    name: Run code analysis
+    runs-on: ubuntu-22.04
+    env:
+      MIX_ENV: test
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        elixir-version: '1.14.3' # Define the elixir version [required]
+        otp-version: '25.3' # Define the OTP version [required]
+    - name: Install dependencies
+      run: mix deps.get
+    - name: Send coveralls
+      run: mix coveralls.github
