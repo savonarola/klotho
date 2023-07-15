@@ -1,6 +1,10 @@
 defmodule KlothoTest do
   use ExUnit.Case
 
+  ########################################
+  # frozen mode
+  ########################################
+
   test "frozen mode: send_after/start_timer" do
     {:ok, _} = Klotho.Mock.start_link(:frozen)
     Klotho.send_after(100, self(), "hello")
@@ -84,6 +88,72 @@ defmodule KlothoTest do
     assert_receive "test"
   end
 
+  test "frozen mode: system_time" do
+    {:ok, _} = Klotho.Mock.start_link(:frozen)
+    t0 = Klotho.system_time(:millisecond)
+
+    Klotho.Mock.warp_by(1000)
+    t1 = :erlang.convert_time_unit(Klotho.system_time(), :native, :millisecond)
+
+    assert t1 - t0 >= 1000
+  end
+
+  test "frozen mode: time_offset" do
+    {:ok, _} = Klotho.Mock.start_link(:frozen)
+
+    assert_in_delta Klotho.monotonic_time(:millisecond) + Klotho.time_offset(:millisecond),
+                    Klotho.system_time(:millisecond),
+                    10
+
+    Klotho.Mock.warp_by(1000)
+
+    assert_in_delta Klotho.monotonic_time(:millisecond) +
+                      :erlang.convert_time_unit(Klotho.time_offset(), :native, :millisecond),
+                    Klotho.system_time(:millisecond),
+                    10
+  end
+
+  test "frozen mode: send_ater/start_timer absolute" do
+    {:ok, _} = Klotho.Mock.start_link(:frozen)
+    t = Klotho.monotonic_time(:millisecond)
+    Klotho.send_after(t + 100, self(), "hello", abs: true)
+    ref = Klotho.start_timer(t + 200, self(), "world", abs: true)
+    Klotho.Mock.warp_by(99)
+    refute_received "hello"
+    Klotho.Mock.warp_by(2)
+    assert_receive "hello"
+    refute_received {:timeout, ^ref, "world"}
+    Klotho.Mock.warp_by(100)
+    assert_receive {:timeout, ^ref, "world"}
+  end
+
+  test "frozen: cancel" do
+    {:ok, _} = Klotho.Mock.start_link(:frozen)
+    ref0 = Klotho.send_after(50, self(), "hello")
+    ref1 = Klotho.send_after(150, self(), "whole")
+    ref2 = Klotho.send_after(250, self(), "world")
+    ref3 = Klotho.send_after(300, self(), "!!")
+    ref4 = make_ref()
+
+    assert :ok == Klotho.cancel_timer(ref0, info: false, async: true)
+    assert :ok == Klotho.cancel_timer(ref1, info: false, async: false)
+    assert_in_delta 250, Klotho.cancel_timer(ref2, info: true, async: false), 20
+    Klotho.cancel_timer(ref3, info: true, async: true)
+    Klotho.cancel_timer(ref4, info: true, async: true)
+
+    Klotho.Mock.warp_by(300)
+    refute_receive "!!"
+    refute_receive "world"
+    refute_receive "whole"
+    refute_receive "hello"
+    assert_receive {:cancel_timer, ^ref3, _}
+    assert_receive {:cancel_timer, ^ref4, false}
+  end
+
+  ########################################################
+  # running mode
+  ########################################################
+
   test "running mode: monotonic_time" do
     {:ok, _} = Klotho.Mock.start_link()
     time = Klotho.monotonic_time(:millisecond)
@@ -107,16 +177,19 @@ defmodule KlothoTest do
     t1 = Klotho.monotonic_time(:millisecond)
 
     :timer.sleep(100)
-    assert_receive "hello" # because time is running
+    # because time is running
+    assert_receive "hello"
     refute_received {:timeout, ^ref, "world"}
 
     Klotho.Mock.warp_by(100)
-    assert_receive {:timeout, ^ref, "world"} # because time is warped by 100ms, 200ms now "passed"
+    # because time is warped by 100ms, 200ms now "passed"
+    assert_receive {:timeout, ^ref, "world"}
     refute_received "!!"
 
     :timer.sleep(100)
 
-    assert_receive "!!" # because time is warped by 100ms, 300ms now "passed"
+    # because time is warped by 100ms, 300ms now "passed"
+    assert_receive "!!"
 
     t2 = Klotho.monotonic_time(:millisecond)
 
@@ -126,23 +199,32 @@ defmodule KlothoTest do
   test "running: cancel" do
     {:ok, _} = Klotho.Mock.start_link()
     ref0 = Klotho.send_after(50, self(), "hello")
-    ref1 = Klotho.send_after(150, self(), "world")
-    _ref2 = Klotho.send_after(250, self(), "!!")
+    ref1 = Klotho.send_after(150, self(), "whole")
+    ref2 = Klotho.send_after(250, self(), "world")
+    ref3 = Klotho.send_after(300, self(), "!!")
+    ref4 = make_ref()
 
-    Klotho.cancel_timer(ref1)
-    Klotho.cancel_timer(ref0)
+    assert :ok == Klotho.cancel_timer(ref0, info: false, async: true)
+    assert :ok == Klotho.cancel_timer(ref1, info: false, async: false)
+    assert_in_delta 250, Klotho.cancel_timer(ref2, info: true, async: false), 20
+    Klotho.cancel_timer(ref3, info: true, async: true)
+    Klotho.cancel_timer(ref4, info: true, async: true)
 
     Klotho.Mock.warp_by(300)
-    assert_received "!!"
-    refute_received "world"
-    refute_received "hello"
+    refute_receive "!!"
+    refute_receive "world"
+    refute_receive "whole"
+    refute_receive "hello"
+    assert_receive {:cancel_timer, ^ref3, _}
+    assert_receive {:cancel_timer, ^ref4, false}
   end
 
   test "running mode: freeze/unfreeze" do
     {:ok, _} = Klotho.Mock.start_link()
     t1 = Klotho.monotonic_time()
     :timer.sleep(1)
-    assert :ok == Klotho.Mock.unfreeze() # unfreeze is a noop in running mode
+    # unfreeze is a noop in running mode
+    assert :ok == Klotho.Mock.unfreeze()
     Klotho.Mock.freeze()
     t2 = Klotho.monotonic_time()
     :timer.sleep(1)
@@ -206,8 +288,91 @@ defmodule KlothoTest do
     Klotho.Real.send_after(0, self(), "world")
     assert_receive "world"
 
+    Klotho.Real.send_after(:erlang.monotonic_time(:millisecond), self(), "world abs", abs: true)
+    assert_receive "world abs"
+
     ref = Klotho.Real.start_timer(0, self(), "!!")
     assert_receive {:timeout, ^ref, "!!"}
 
+    ref =
+      Klotho.Real.start_timer(:erlang.monotonic_time(:millisecond), self(), "!! abs", abs: true)
+
+    assert_receive {:timeout, ^ref, "!! abs"}
+
+    t1 = Klotho.Real.system_time(:millisecond)
+    :timer.sleep(1)
+    t2 = Klotho.Real.system_time(:millisecond)
+    assert t1 < t2
+
+    t3 = Klotho.Real.system_time()
+    :timer.sleep(1)
+    t4 = Klotho.Real.system_time()
+    assert t3 < t4
+
+    assert_in_delta Klotho.Real.monotonic_time(:millisecond) +
+                      :erlang.convert_time_unit(Klotho.Real.time_offset(), :native, :millisecond),
+                    Klotho.Real.system_time(:millisecond),
+                    10
+
+    assert_in_delta Klotho.Real.monotonic_time(:millisecond) +
+                      Klotho.Real.time_offset(:millisecond),
+                    Klotho.Real.system_time(:millisecond),
+                    10
+  end
+
+  test "running mode: system_time" do
+    {:ok, _} = Klotho.Mock.start_link()
+    t0 = Klotho.system_time(:millisecond)
+
+    Klotho.Mock.warp_by(500)
+    :timer.sleep(100)
+    t1 = :erlang.convert_time_unit(Klotho.system_time(), :native, :millisecond)
+
+    assert t1 - t0 >= 600
+  end
+
+  test "running mode: time_offset" do
+    {:ok, _} = Klotho.Mock.start_link()
+
+    assert_in_delta Klotho.monotonic_time(:millisecond) + Klotho.time_offset(:millisecond),
+                    Klotho.system_time(:millisecond),
+                    10
+
+    Klotho.Mock.warp_by(500)
+    :timer.sleep(100)
+
+    assert_in_delta Klotho.monotonic_time(:millisecond) +
+                      :erlang.convert_time_unit(Klotho.time_offset(), :native, :millisecond),
+                    Klotho.system_time(:millisecond),
+                    10
+  end
+
+  test "running mode: send_after/start_timer absolute" do
+    {:ok, _} = Klotho.Mock.start_link()
+    t = Klotho.monotonic_time(:millisecond)
+    Klotho.send_after(t + 50, self(), "hello", abs: true)
+    ref = Klotho.start_timer(t + 150, self(), "world", abs: true)
+    Klotho.send_after(t + 250, self(), "!!", abs: true)
+
+    t1 = Klotho.monotonic_time(:millisecond)
+
+    :timer.sleep(100)
+    # because time is running
+    assert_receive "hello"
+    refute_received {:timeout, ^ref, "world"}
+
+    Klotho.Mock.warp_by(100)
+    # because time is warped by 100ms, 200ms now "passed"
+    assert_receive {:timeout, ^ref, "world"}
+    refute_received "!!"
+
+    :timer.sleep(100)
+
+    # because time is warped by 100ms, 300ms now "passed"
+    assert_receive "!!"
+
+    t2 = Klotho.monotonic_time(:millisecond)
+
+    assert t2 >= t1 + 300
   end
 end

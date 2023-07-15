@@ -19,8 +19,16 @@ defmodule Klotho do
     @backend.send_after(time, pid, message)
   end
 
+  def send_after(time, pid, message, opts) do
+    @backend.send_after(time, pid, message, opts)
+  end
+
   def start_timer(time, pid, message) do
     @backend.start_timer(time, pid, message)
+  end
+
+  def start_timer(time, pid, message, opts) do
+    @backend.start_timer(time, pid, message, opts)
   end
 
   def read_timer(ref) do
@@ -29,5 +37,25 @@ defmodule Klotho do
 
   def cancel_timer(ref) do
     @backend.cancel_timer(ref)
+  end
+
+  def cancel_timer(ref, opts) do
+    @backend.cancel_timer(ref, opts)
+  end
+
+  def system_time(unit) do
+    @backend.system_time(unit)
+  end
+
+  def system_time() do
+    @backend.system_time()
+  end
+
+  def time_offset(unit) do
+    @backend.time_offset(unit)
+  end
+
+  def time_offset() do
+    @backend.time_offset()
   end
 end

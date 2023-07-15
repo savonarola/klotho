@@ -14,7 +14,9 @@ defmodule Klotho.Mock do
   defstruct time: 0,
             unfreeze_time: 0,
             timer_messages: [],
-            timer_message_history: []
+            timer_message_history: [],
+            start_time: 0,
+            start_system_time: 0
 
   def start_link() do
     start_link(:running)
@@ -27,7 +29,6 @@ defmodule Klotho.Mock do
   # Time functions
 
   def monotonic_time(unit) do
-    _ = :erlang.monotonic_time(unit) # check unit
     :erlang.convert_time_unit(monotonic_time(), :native, unit)
   end
 
@@ -35,20 +36,74 @@ defmodule Klotho.Mock do
     :gen_statem.call(@server, :monotonic_time)
   end
 
+  @default_send_after_opts %{abs: false}
+
   def send_after(time, pid, message) when is_non_negative_integer(time) and is_reciever(pid) do
-    :gen_statem.call(@server, {:create_timer, {:send_after, time, pid, message}})
+    :gen_statem.call(
+      @server,
+      {:create_timer, {:send_after, time, pid, message, @default_send_after_opts}}
+    )
   end
 
+  def send_after(time, pid, message, opts) when is_reciever(pid) do
+    opts = timer_opts(@default_send_after_opts, opts)
+
+    if not opts[:abs] and time <= 0 do
+      raise ArgumentError
+    end
+
+    :gen_statem.call(@server, {:create_timer, {:send_after, time, pid, message, opts}})
+  end
+
+  @default_start_timer_opts %{abs: false}
+
   def start_timer(time, pid, message) when is_non_negative_integer(time) and is_reciever(pid) do
-    :gen_statem.call(@server, {:create_timer, {:start_timer, time, pid, message}})
+    :gen_statem.call(
+      @server,
+      {:create_timer, {:start_timer, time, pid, message, @default_start_timer_opts}}
+    )
+  end
+
+  def start_timer(time, pid, message, opts)
+      when is_reciever(pid) do
+    opts = timer_opts(@default_start_timer_opts, opts)
+
+    if not opts[:abs] and time <= 0 do
+      raise ArgumentError
+    end
+
+    :gen_statem.call(@server, {:create_timer, {:start_timer, time, pid, message, opts}})
   end
 
   def read_timer(ref) when is_reference(ref) do
     :gen_statem.call(@server, {:read_timer, ref})
   end
 
+  @default_cancel_timer_opts %{info: true, async: false}
+
   def cancel_timer(ref) when is_reference(ref) do
-    :gen_statem.call(@server, {:cancel_timer, ref})
+    :gen_statem.call(@server, {:cancel_timer, {self(), ref}, @default_cancel_timer_opts})
+  end
+
+  def cancel_timer(ref, opts) when is_reference(ref) do
+    opts = timer_opts(@default_cancel_timer_opts, opts)
+    :gen_statem.call(@server, {:cancel_timer, {self(), ref}, opts})
+  end
+
+  def system_time() do
+    :gen_statem.call(@server, :system_time)
+  end
+
+  def system_time(unit) do
+    :erlang.convert_time_unit(system_time(), :native, unit)
+  end
+
+  def time_offset() do
+    :gen_statem.call(@server, :time_offset)
+  end
+
+  def time_offset(unit) do
+    :erlang.convert_time_unit(time_offset(), :native, unit)
   end
 
   # Mock functions
@@ -78,7 +133,9 @@ defmodule Klotho.Mock do
 
     {:ok, :frozen,
      %Data{
-       time: time
+       time: time,
+       start_time: time,
+       start_system_time: :erlang.system_time()
      }}
   end
 
@@ -88,7 +145,9 @@ defmodule Klotho.Mock do
     {:ok, :running,
      %Data{
        time: time,
-       unfreeze_time: time
+       unfreeze_time: time,
+       start_time: time,
+       start_system_time: :erlang.system_time()
      }}
   end
 
@@ -96,7 +155,7 @@ defmodule Klotho.Mock do
 
   ## Frosen state
 
-  def frozen({:call, from}, {:cancel_timer, ref}, data) do
+  def frozen({:call, from}, {:cancel_timer, {_pid, ref} = args, opts}, data) do
     {maybe_msg, new_messages} = take_msg(ref, data.timer_messages)
 
     new_data = %Data{
@@ -104,7 +163,8 @@ defmodule Klotho.Mock do
       | timer_messages: new_messages
     }
 
-    {:keep_state, new_data, [{:reply, from, time_left(maybe_msg, :frozen, data)}]}
+    {:keep_state, new_data,
+     [{:reply, from, cancel_response(maybe_msg, :frozen, data, args, opts)}]}
   end
 
   def frozen({:call, from}, {:read_timer, ref}, data) do
@@ -115,6 +175,16 @@ defmodule Klotho.Mock do
 
   def frozen({:call, from}, :monotonic_time, data) do
     {:keep_state_and_data, [{:reply, from, mocked_monotonic_time(:frozen, data)}]}
+  end
+
+  def frozen({:call, from}, :system_time, data) do
+    system_time = mocked_monotonic_time(:frozen, data) - data.start_time + data.start_system_time
+    {:keep_state_and_data, [{:reply, from, system_time}]}
+  end
+
+  def frozen({:call, from}, :time_offset, data) do
+    time_offset = data.start_system_time - data.start_time
+    {:keep_state_and_data, [{:reply, from, time_offset}]}
   end
 
   def frozen({:call, from}, :freeze, _data) do
@@ -149,7 +219,7 @@ defmodule Klotho.Mock do
 
   ## Running state
 
-  def running({:call, from}, {:cancel_timer, ref}, data) do
+  def running({:call, from}, {:cancel_timer, {_pid, ref} = args, opts}, data) do
     {maybe_msg, new_messages} = take_msg(ref, data.timer_messages)
 
     new_data = %Data{
@@ -158,7 +228,10 @@ defmodule Klotho.Mock do
     }
 
     {:next_state, :rescheduling, new_data,
-     [{:reply, from, time_left(maybe_msg, :running, data)}, {:next_event, :internal, :reschedule}]}
+     [
+       {:reply, from, cancel_response(maybe_msg, :running, data, args, opts)},
+       {:next_event, :internal, :reschedule}
+     ]}
   end
 
   def running({:call, from}, {:read_timer, ref}, data) do
@@ -169,6 +242,16 @@ defmodule Klotho.Mock do
 
   def running({:call, from}, :monotonic_time, data) do
     {:keep_state_and_data, [{:reply, from, mocked_monotonic_time(:running, data)}]}
+  end
+
+  def running({:call, from}, :system_time, data) do
+    system_time = mocked_monotonic_time(:running, data) - data.start_time + data.start_system_time
+    {:keep_state_and_data, [{:reply, from, system_time}]}
+  end
+
+  def running({:call, from}, :time_offset, data) do
+    time_offset = data.start_system_time - data.start_time
+    {:keep_state_and_data, [{:reply, from, time_offset}]}
   end
 
   def running({:call, from}, :freeze, data) do
@@ -254,16 +337,24 @@ defmodule Klotho.Mock do
   defp make_message(%TimerMsg{type: :send_after, message: message}) do
     message
   end
+
   defp make_message(%TimerMsg{type: :start_timer, message: message, ref: ref}) do
     {:timeout, ref, message}
   end
 
-  defp make_timer_msg(state, data, {type, interval, pid, message}) do
+  defp make_timer_msg(state, data, {type, interval, pid, message, opts}) do
     ref = :erlang.make_ref()
 
-    time =
-      mocked_monotonic_time(state, data) +
-        :erlang.convert_time_unit(interval, :millisecond, :native)
+    interval = :erlang.convert_time_unit(interval, :millisecond, :native)
+
+    interval =
+      if opts[:abs] do
+        interval - mocked_monotonic_time(state, data)
+      else
+        interval
+      end
+
+    time = mocked_monotonic_time(state, data) + interval
 
     %TimerMsg{
       pid: pid,
@@ -325,10 +416,25 @@ defmodule Klotho.Mock do
   def time_left(nil, _state, _data) do
     false
   end
+
   def time_left(msg, state, data) do
     (msg.time - mocked_monotonic_time(state, data))
     |> to_non_negative()
     |> :erlang.convert_time_unit(:native, :millisecond)
+  end
+
+  defp cancel_response(_msg, _state, _data, _args, %{info: false}) do
+    :ok
+  end
+
+  defp cancel_response(msg, state, data, {pid, ref}, %{async: true, info: true}) do
+    timer_cancel_message = {:cancel_timer, ref, time_left(msg, state, data)}
+    send(pid, timer_cancel_message)
+    :ok
+  end
+
+  defp cancel_response(msg, state, data, _args, %{async: false, info: true}) do
+    time_left(msg, state, data)
   end
 
   defp to_non_negative(number) do
@@ -337,5 +443,17 @@ defmodule Klotho.Mock do
     else
       number
     end
+  end
+
+  defp timer_opts(acc, []) do
+    acc
+  end
+
+  defp timer_opts(acc, [{key, value} | rest]) when is_map_key(acc, key) and is_boolean(value) do
+    timer_opts(Map.put(acc, key, value), rest)
+  end
+
+  defp timer_opts(_acc, _opts) do
+    raise ArgumentError, "Invalid options"
   end
 end
