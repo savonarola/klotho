@@ -5,6 +5,10 @@
 
 Opinionated library for testing timer-based code.
 
+## Usage
+
+See [USAGE](USAGE.md).
+
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed

@@ -19,11 +19,7 @@ defmodule Klotho.Mock do
     @moduledoc """
     Struct to represent a timer message.
     """
-    defstruct [:pid,
-              :time,
-              :message,
-              :ref,
-              :type]
+    defstruct [:pid, :time, :message, :ref, :type]
 
     @type t :: %__MODULE__{
             pid: pid(),
@@ -100,7 +96,7 @@ defmodule Klotho.Mock do
   Most recent messages are first.
   """
 
-  @spec timer_event_history() :: [TimerMsg.t]
+  @spec timer_event_history() :: [TimerMsg.t()]
   def timer_event_history() do
     :gen_statem.call(@server, :history)
   end
