@@ -532,11 +532,11 @@ defmodule Klotho.Mock do
     Enum.find(msgs, fn msg -> msg.ref == ref end)
   end
 
-  def time_left(nil, _state, _data) do
+  defp time_left(nil, _state, _data) do
     false
   end
 
-  def time_left(msg, state, data) do
+  defp time_left(msg, state, data) do
     (msg.time - mocked_monotonic_time(state, data))
     |> to_non_negative()
     |> :erlang.convert_time_unit(:native, :millisecond)
