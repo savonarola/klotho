@@ -1,4 +1,6 @@
 defmodule Klotho.Real do
+  @moduledoc false
+
   def monotonic_time(unit) do
     :erlang.monotonic_time(unit)
   end
@@ -29,6 +31,10 @@ defmodule Klotho.Real do
 
   def cancel_timer(ref) do
     :erlang.cancel_timer(ref)
+  end
+
+  def cancel_timer(ref, opts) do
+    :erlang.cancel_timer(ref, opts)
   end
 
   def system_time() do

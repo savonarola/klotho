@@ -1,5 +1,12 @@
 defmodule Klotho do
-  @moduledoc false
+  @moduledoc """
+  A module that provides a interface to Erlang's time functions.
+
+  In production, all functions are proxied to the `:erlang` module directly.
+
+  In tests, the functions are proxied to `Klotho.Mock`, and the time "flow"
+  can be controlled by calling `Klotho.Mock` functions.
+  """
 
   if Mix.env() == :test do
     @backend Klotho.Mock
