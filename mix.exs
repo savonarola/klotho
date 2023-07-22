@@ -5,7 +5,7 @@ defmodule Klotho.MixProject do
     [
       app: :klotho,
       description: description(),
-      version: "0.1.1",
+      version: "0.1.2",
       elixir: "~> 1.12",
       start_permanent: Mix.env() in [:dev, :test],
       deps: deps(),
