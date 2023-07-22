@@ -238,6 +238,8 @@ defmodule Klotho.Mock do
 
   @doc false
   def init([:frozen]) do
+    Klotho.set_backend(__MODULE__)
+
     time = :erlang.monotonic_time()
 
     {:ok, :frozen,
@@ -250,6 +252,8 @@ defmodule Klotho.Mock do
 
   @doc false
   def init([:running]) do
+    Klotho.set_backend(__MODULE__)
+
     time = :erlang.monotonic_time()
 
     {:ok, :running,

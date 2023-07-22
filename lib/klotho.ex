@@ -15,54 +15,62 @@ defmodule Klotho do
   end
 
   def monotonic_time(unit) do
-    @backend.monotonic_time(unit)
+    backend().monotonic_time(unit)
   end
 
   def monotonic_time() do
-    @backend.monotonic_time()
+    backend().monotonic_time()
   end
 
   def send_after(time, pid, message) do
-    @backend.send_after(time, pid, message)
+    backend().send_after(time, pid, message)
   end
 
   def send_after(time, pid, message, opts) do
-    @backend.send_after(time, pid, message, opts)
+    backend().send_after(time, pid, message, opts)
   end
 
   def start_timer(time, pid, message) do
-    @backend.start_timer(time, pid, message)
+    backend().start_timer(time, pid, message)
   end
 
   def start_timer(time, pid, message, opts) do
-    @backend.start_timer(time, pid, message, opts)
+    backend().start_timer(time, pid, message, opts)
   end
 
   def read_timer(ref) do
-    @backend.read_timer(ref)
+    backend().read_timer(ref)
   end
 
   def cancel_timer(ref) do
-    @backend.cancel_timer(ref)
+    backend().cancel_timer(ref)
   end
 
   def cancel_timer(ref, opts) do
-    @backend.cancel_timer(ref, opts)
+    backend().cancel_timer(ref, opts)
   end
 
   def system_time(unit) do
-    @backend.system_time(unit)
+    backend().system_time(unit)
   end
 
   def system_time() do
-    @backend.system_time()
+    backend().system_time()
   end
 
   def time_offset(unit) do
-    @backend.time_offset(unit)
+    backend().time_offset(unit)
   end
 
   def time_offset() do
-    @backend.time_offset()
+    backend().time_offset()
+  end
+
+  def set_backend(backend) when backend == Klotho.Mock or backend == Klotho.Real do
+    :persistent_term.put(:klotho_backend, backend)
+  end
+
+  defp backend() do
+    :persistent_term.get(:klotho_backend, @backend)
   end
 end
