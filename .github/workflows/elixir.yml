@@ -7,15 +7,12 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
-    name: Build and test
+  test:
+    name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp_release }})
     runs-on: ubuntu-22.04
-
-    # https://github.com/elixir-lang/elixir/blob/master/lib/elixir/pages/compatibility-and-deprecations.md
     strategy:
       matrix:
         include:
-
           # Elixir 1.12
 
           - elixir: 1.12.3
@@ -32,38 +29,78 @@ jobs:
           # Elixir 1.14
 
           - elixir: 1.14.5
-            otp_release: 24.2.1
+            otp_release: 24.3
 
           - elixir: 1.14.5
             otp_release: 25.3
 
+          - elixir: 1.14.5
+            otp_release: 26.2
+
           # Elixir 1.15
 
-          - elixir: 1.15.2
+          - elixir: 1.15.8
             otp_release: 24.3
 
-          - elixir: 1.15.2
+          - elixir: 1.15.8
             otp_release: 25.3
 
-          - elixir: 1.15.2
-            otp_release: 26.0
+          - elixir: 1.15.8
+            otp_release: 26.2
+
+          # Elixir 1.16
+
+          - elixir: 1.16.3
+            otp_release: 24.3
+
+          - elixir: 1.16.3
+            otp_release: 25.3
+
+          - elixir: 1.16.3
+            otp_release: 26.2
+
+          # Elixir 1.17
+
+          - elixir: 1.17.3
+            otp_release: 25.3
+
+          - elixir: 1.17.3
+            otp_release: 26.2
+
+          - elixir: 1.17.3
+            otp_release: 27.1
+
+          # Elixir 1.18
+
+          - elixir: 1.18.3
+            otp_release: 27.3
+
+          # Elixir 1.19
+
+          - elixir: 1.19.0
+            otp_release: 27.3
+
+          - elixir: 1.19.0
+            otp_release: 28.0
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
-      with:
-        elixir-version: ${{ matrix.elixir }}
-        otp-version: ${{ matrix.otp_release }}
-    - name: Restore dependencies cache
-      uses: actions/cache@v2
-      with:
-        path: deps
-        key: ${{ matrix.elixir }}-${{ matrix.otp_release }}-${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-    - name: Install dependencies
-      run: mix deps.get
-    - name: Run tests
-      run: mix test
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp_release }}
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Compile
+        run: mix compile --warnings-as-errors
+
+      - name: Run tests
+        run: mix test
 
   code_analysis:
     name: Run code analysis
@@ -72,15 +109,41 @@ jobs:
       MIX_ENV: test
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
-      with:
-        elixir-version: '1.14.3' # Define the elixir version [required]
-        otp-version: '25.3' # Define the OTP version [required]
-    - name: Install dependencies
-      run: mix deps.get
-    - name: Check formatting
-      run: mix format --check-formatted
-    - name: Send coveralls
-      run: mix coveralls.github
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: 1.19.0
+          otp-version: 28.0
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Send coveralls
+        run: mix coveralls.github
+
+  coveralls:
+    name: Coveralls
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: 1.19.0
+          otp-version: 28.0
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run coveralls
+        run: mix coveralls.github
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
