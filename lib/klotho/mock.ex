@@ -270,7 +270,7 @@ defmodule Klotho.Mock do
   ## Frozen state
 
   @doc false
-  def frozen({:call, from}, {:cancel_timer, {_pid, ref} = args, opts}, data) do
+  def frozen({:call, from}, {:cancel_timer, {_pid, ref} = args, opts}, %Data{} = data) do
     {maybe_msg, new_messages} = take_msg(ref, data.timer_messages)
 
     new_data = %Data{
@@ -306,7 +306,7 @@ defmodule Klotho.Mock do
     {:keep_state_and_data, [{:reply, from, :ok}]}
   end
 
-  def frozen({:call, from}, :unfreeze, data) do
+  def frozen({:call, from}, :unfreeze, %Data{} = data) do
     new_data = %Data{
       data
       | unfreeze_time: :erlang.monotonic_time()
@@ -316,7 +316,7 @@ defmodule Klotho.Mock do
      [{:reply, from, :ok}, {:next_event, :internal, :reschedule}]}
   end
 
-  def frozen({:call, from}, {:create_timer, create_args}, data) do
+  def frozen({:call, from}, {:create_timer, create_args}, %Data{} = data) do
     msg = make_timer_msg(:frozen, data, create_args)
 
     new_data = %Data{
@@ -339,7 +339,7 @@ defmodule Klotho.Mock do
   ## Running state
 
   @doc false
-  def running({:call, from}, {:cancel_timer, {_pid, ref} = args, opts}, data) do
+  def running({:call, from}, {:cancel_timer, {_pid, ref} = args, opts}, %Data{} = data) do
     {maybe_msg, new_messages} = take_msg(ref, data.timer_messages)
 
     new_data = %Data{
@@ -374,7 +374,7 @@ defmodule Klotho.Mock do
     {:keep_state_and_data, [{:reply, from, time_offset}]}
   end
 
-  def running({:call, from}, :freeze, data) do
+  def running({:call, from}, :freeze, %Data{} = data) do
     new_data = %Data{
       data
       | time: mocked_monotonic_time(:running, data),
@@ -388,7 +388,7 @@ defmodule Klotho.Mock do
     {:keep_state_and_data, [{:reply, from, :ok}]}
   end
 
-  def running({:call, from}, {:create_timer, create_args}, data) do
+  def running({:call, from}, {:create_timer, create_args}, %Data{} = data) do
     msg = make_timer_msg(:running, data, create_args)
 
     new_data = %Data{
@@ -426,7 +426,7 @@ defmodule Klotho.Mock do
 
   # Private Functions
 
-  defp warp_by(state, data, timer_interval, unit) do
+  defp warp_by(state, %Data{} = data, timer_interval, unit) do
     timer_interval = :erlang.convert_time_unit(timer_interval, unit, :native)
     real_monotonic_time = :erlang.monotonic_time()
     new_time = mocked_monotonic_time(state, data, real_monotonic_time) + timer_interval
@@ -518,7 +518,7 @@ defmodule Klotho.Mock do
     end
   end
 
-  defp send_msg(data, ref) do
+  defp send_msg(%Data{} = data, ref) do
     {msg, new_messages} = take_msg(ref, data.timer_messages)
 
     timer_message_history =

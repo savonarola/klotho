@@ -12,13 +12,19 @@ defmodule Klotho.MixProject do
       test_coverage: [tool: ExCoveralls],
       elixirc_paths: elixirc_paths(Mix.env()),
       package: package(),
-      preferred_cli_env: [
+      docs: docs()
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
-        "coveralls.html": :test
-      ],
-      docs: docs()
+        "coveralls.html": :test,
+        "coveralls.github": :test
+      ]
     ]
   end
 
