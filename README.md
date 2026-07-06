@@ -17,7 +17,7 @@ by adding `klotho` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:klotho, "~> 0.1.0"}
+    {:klotho, "~> 0.2.0", env: Mix.env()}
   ]
 end
 ```
