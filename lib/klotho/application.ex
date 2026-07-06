@@ -3,13 +3,15 @@ defmodule Klotho.Application do
 
   use Application
 
+  if Mix.env() == :test do
+    @children [{Klotho.Mock, :running}]
+  else
+    @children []
+  end
+
   @impl true
   def start(_type, _args) do
-    children = [
-      {Klotho.Mock, :running}
-    ]
-
     opts = [strategy: :one_for_one, name: Klotho.Supervisor]
-    Supervisor.start_link(children, opts)
+    Supervisor.start_link(@children, opts)
   end
 end
